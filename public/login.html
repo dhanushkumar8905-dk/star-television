@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Star Television - Operator Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { min-height: 100vh; background: linear-gradient(135deg, #1a237e 0%, #3949ab 55%, #5c6bc0 100%); }
+        .login-card { width: 100%; max-width: 400px; border: 0; border-radius: 16px; }
+        .logo { width: 64px; height: 64px; border-radius: 16px; background: #fff3e0; color: #ef6c00;
+                display: inline-flex; align-items: center; justify-content: center; font-size: 32px; }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center p-3">
+<div class="card login-card shadow-lg p-4">
+    <div class="text-center mb-4">
+        <div class="logo mb-3"><i class="bi bi-tv-fill"></i></div>
+        <h4 class="fw-bold mb-0">Star Television</h4>
+        <div class="text-muted">Cable Operator Console</div>
+    </div>
+    <div id="errorBox" class="alert alert-danger py-2 d-none"></div>
+    <div class="mb-3">
+        <label class="form-label small text-muted">Username</label>
+        <input id="username" class="form-control form-control-lg" value="admin" autocomplete="username">
+    </div>
+    <div class="mb-4">
+        <label class="form-label small text-muted">Password</label>
+        <input id="password" type="password" class="form-control form-control-lg" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" class="btn btn-primary btn-lg w-100" onclick="login()">Sign in</button>
+    <div class="text-muted small text-center mt-3">First time? Default password is <b>star123</b> &mdash; you'll be asked to change it.</div>
+</div>
+
+<script>
+// already signed in? go straight to the dashboard
+if (sessionStorage.getItem('adminToken')) window.location.href = 'dashboard.html';
+
+document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+async function login() {
+    const errorBox = document.getElementById('errorBox');
+    const btn = document.getElementById('loginBtn');
+    errorBox.classList.add('d-none');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+            sessionStorage.setItem('adminToken', data.token);   // sent with every dashboard request
+            window.location.href = 'dashboard.html';
+            return;
+        }
+        errorBox.textContent = data.message || 'Login failed';
+    } catch (e) {
+        errorBox.textContent = 'Could not reach the server. Is it running?';
+    }
+    errorBox.classList.remove('d-none');
+    btn.disabled = false;
+}
+</script>
+</body>
+</html>

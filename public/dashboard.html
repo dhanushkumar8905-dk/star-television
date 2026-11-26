@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Star Television - Operator Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root { --brand: #3949ab; --brand-dark: #1a237e; }
+        body { background: #f3f5fa; }
+        .layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 230px; background: linear-gradient(180deg, var(--brand-dark), var(--brand)); color: #fff;
+                   display: flex; flex-direction: column; padding: 18px 12px; position: sticky; top: 0; height: 100vh; }
+        .sidebar .brand { font-weight: 700; font-size: 1.15rem; padding: 4px 10px 18px; display: flex; align-items: center; gap: 10px; }
+        .sidebar .brand i { background: #fff3e0; color: #ef6c00; border-radius: 10px; padding: 6px 8px; }
+        .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; color: #c5cae9;
+                   text-align: left; padding: 10px 12px; border-radius: 10px; margin-bottom: 2px; font-size: .95rem; }
+        .nav-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+        .nav-btn.active { background: rgba(255,255,255,.2); color: #fff; font-weight: 600; }
+        .content { flex: 1; min-width: 0; padding: 22px 28px; }
+        .stat { border: 0; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat .icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+        .panel { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 18px; }
+        .table > :not(caption) > * > * { padding: .65rem .75rem; }
+        .table thead th { font-size: .78rem; text-transform: uppercase; color: #6b7280; letter-spacing: .03em; border-bottom-width: 1px; white-space: nowrap; }
+        .bar-wrap { background: #e8eaf6; border-radius: 6px; height: 10px; min-width: 90px; }
+        .bar { background: #43a047; height: 10px; border-radius: 6px; }
+        .view { display: none; }
+        .view.show { display: block; }
+        @media (max-width: 820px) {
+            .layout { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px; }
+            .sidebar .brand { padding: 0 8px 0 0; }
+            .nav-btn { width: auto; padding: 8px 10px; }
+            .sidebar .spacer { display: none; }
+            .content { padding: 16px 12px; }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+
+    <!-- ============ Sidebar ============ -->
+    <aside class="sidebar">
+        <div class="brand"><i class="bi bi-tv-fill"></i> Star Television</div>
+        <button class="nav-btn active" data-view="overview"><i class="bi bi-speedometer2"></i> Overview</button>
+        <button class="nav-btn" data-view="customers"><i class="bi bi-people"></i> Customers</button>
+        <button class="nav-btn" data-view="bills"><i class="bi bi-receipt"></i> Bills</button>
+        <button class="nav-btn" data-view="payments"><i class="bi bi-cash-coin"></i> Payments</button>
+        <button class="nav-btn" data-view="complaints"><i class="bi bi-tools"></i> Complaints <span id="complaintBadge" class="badge bg-warning text-dark ms-auto d-none"></span></button>
+        <button class="nav-btn" data-view="packages"><i class="bi bi-collection-play"></i> Packages</button>
+        <button class="nav-btn" data-view="reports"><i class="bi bi-bar-chart-line"></i> Reports</button>
+        <div class="spacer flex-grow-1"></div>
+        <button class="nav-btn" onclick="downloadBackup()"><i class="bi bi-cloud-download"></i> Download backup</button>
+        <button class="nav-btn" onclick="openModal('pwModal')"><i class="bi bi-key"></i> Change password</button>
+        <button class="nav-btn" onclick="logout()"><i class="bi bi-box-arrow-left"></i> Logout</button>
+    </aside>
+
+    <main class="content">
+        <div id="pwBanner" class="alert alert-warning d-none">
+            <i class="bi bi-exclamation-triangle"></i> You are still using the default password.
+            <a href="#" onclick="openModal('pwModal'); return false;" class="alert-link">Change it now</a>.
+        </div>
+
+        <!-- ============ Overview ============ -->
+        <section id="view-overview" class="view show">
+            <h4 class="fw-bold mb-3">Overview</h4>
+            <div class="row g-3 mb-4" id="statCards"></div>
+            <div class="row g-3">
+                <div class="col-lg-6"><div class="panel h-100">
+                    <h6 class="fw-bold mb-3">Collection by month</h6>
+                    <div id="overviewMonths" class="small"></div>
+                </div></div>
+                <div class="col-lg-6"><div class="panel h-100">
+                    <h6 class="fw-bold mb-3">Recent payments</h6>
+                    <div id="recentPayments" class="small"></div>
+                </div></div>
+            </div>
+        </section>
+
+        <!-- ============ Customers ============ -->
+        <section id="view-customers" class="view">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Customers</h4>
+                <input id="custSearch" class="form-control" style="max-width:230px" placeholder="Search name, mobile, address" oninput="renderCustomers()">
+                <select id="custFilter" class="form-select" style="max-width:150px" onchange="renderCustomers()">
+                    <option value="">All status</option><option>Active</option><option>Inactive</option>
+                </select>
+                <button class="btn btn-primary" onclick="openCustomerModal()"><i class="bi bi-plus-lg"></i> Add customer</button>
+            </div>
+            <div class="panel p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Address</th><th>Package</th><th>Due</th><th>Status</th><th></th></tr></thead>
+                    <tbody id="customerBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ============ Bills ============ -->
+        <section id="view-bills" class="view">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Bills</h4>
+                <input id="billSearch" class="form-control" style="max-width:220px" placeholder="Search customer or month" oninput="renderBills()">
+                <select id="billFilter" class="form-select" style="max-width:140px" onchange="renderBills()">
+                    <option value="">All</option><option>Unpaid</option><option>Paid</option>
+                </select>
+                <button class="btn btn-outline-primary" onclick="openBulkModal()"><i class="bi bi-lightning-charge"></i> Bill all customers</button>
+                <button class="btn btn-primary" onclick="openBillModal()"><i class="bi bi-plus-lg"></i> New bill</button>
+            </div>
+            <div class="panel p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>ID</th><th>Customer</th><th>Month</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+                    <tbody id="billBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ============ Payments ============ -->
+        <section id="view-payments" class="view">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Payment history</h4>
+                <input id="paySearch" class="form-control" style="max-width:240px" placeholder="Search customer, method, ref" oninput="renderPayments()">
+                <button class="btn btn-outline-secondary" onclick="exportPayments()"><i class="bi bi-download"></i> Export CSV</button>
+            </div>
+            <div class="panel p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Date</th><th>Customer</th><th>For</th><th>Amount</th><th>Method</th><th>Via</th><th>Reference</th></tr></thead>
+                    <tbody id="paymentBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ============ Complaints ============ -->
+        <section id="view-complaints" class="view">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Complaints</h4>
+                <select id="compFilter" class="form-select" style="max-width:150px" onchange="renderComplaints()">
+                    <option value="">All</option><option selected>Pending</option><option>Resolved</option>
+                </select>
+            </div>
+            <div class="panel p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>ID</th><th>Customer</th><th>Complaint</th><th>Date</th><th>Status</th><th></th></tr></thead>
+                    <tbody id="complaintBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ============ Packages ============ -->
+        <section id="view-packages" class="view">
+            <div class="d-flex align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Packages / plans</h4>
+                <button class="btn btn-primary" onclick="openPackageModal()"><i class="bi bi-plus-lg"></i> Add package</button>
+            </div>
+            <div class="row g-3" id="packageCards"></div>
+        </section>
+
+        <!-- ============ Reports ============ -->
+        <section id="view-reports" class="view">
+            <div class="d-flex align-items-center mb-3">
+                <h4 class="fw-bold mb-0 me-auto">Reports</h4>
+                <button class="btn btn-outline-secondary" onclick="exportReport()"><i class="bi bi-download"></i> Export CSV</button>
+            </div>
+            <div class="panel mb-3">
+                <h6 class="fw-bold mb-3">Monthly collection</h6>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr><th>Month</th><th>Bills</th><th>Billed</th><th>Collected</th><th>Outstanding</th><th style="width:22%">Collected %</th></tr></thead>
+                        <tbody id="reportBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel">
+                <h6 class="fw-bold mb-3">Customers with dues</h6>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr><th>Customer</th><th>Mobile</th><th>Unpaid bills</th><th>Outstanding</th></tr></thead>
+                        <tbody id="duesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- ================= Modals ================= -->
+<div class="modal fade" id="customerModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="customerModalTitle">Add customer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="cId">
+        <div class="mb-2"><label class="form-label small">Name</label><input id="cName" class="form-control"></div>
+        <div class="mb-2"><label class="form-label small">Mobile (10 digits - used for app login)</label><input id="cMobile" class="form-control" inputmode="numeric" maxlength="10"></div>
+        <div class="mb-2"><label class="form-label small">Address</label><input id="cAddress" class="form-control"></div>
+        <div class="mb-2"><label class="form-label small">Package</label><select id="cPackage" class="form-select"></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveCustomer()">Save</button></div>
+</div></div></div>
+
+<div class="modal fade" id="packageModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="packageModalTitle">Add package</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="pId"><input type="hidden" id="pActive" value="true">
+        <div class="mb-2"><label class="form-label small">Package name</label><input id="pName" class="form-control" placeholder="e.g. Gold Pack"></div>
+        <div class="row g-2">
+            <div class="col"><label class="form-label small">Channels</label><input id="pChannels" type="number" min="1" class="form-control"></div>
+            <div class="col"><label class="form-label small">Monthly price (₹)</label><input id="pPrice" type="number" min="1" class="form-control"></div>
+        </div>
+        <div class="form-text mt-2">Changing the price affects future bills only. Old bills keep their amount.</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="savePackage()">Save</button></div>
+</div></div></div>
+
+<div class="modal fade" id="billModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">New bill</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div class="mb-2"><label class="form-label small">Customer</label><select id="bCustomer" class="form-select"></select></div>
+        <div class="mb-2"><label class="form-label small">Month</label><input id="bMonth" type="month" class="form-control"></div>
+        <div class="mb-2"><label class="form-label small">Amount (₹) - leave empty to use the package price</label><input id="bAmount" type="number" min="1" class="form-control"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveBill()">Generate</button></div>
+</div></div></div>
+
+<div class="modal fade" id="bulkModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Bill all active customers</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <label class="form-label small">Month</label><input id="bulkMonth" type="month" class="form-control">
+        <div class="form-text mt-2">Creates one bill per active customer at their package price. Customers who already have a bill for that month are skipped.</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="saveBulk()">Generate bills</button></div>
+</div></div></div>
+
+<div class="modal fade" id="payModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Record payment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="payBillId">
+        <p id="payInfo" class="mb-2"></p>
+        <label class="form-label small">Received by</label>
+        <select id="payMethod" class="form-select"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option><option>Cheque</option></select>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" onclick="savePay()">Mark as paid</button></div>
+</div></div></div>
+
+<div class="modal fade" id="pwModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Change password</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div class="mb-2"><label class="form-label small">Current password</label><input id="pwOld" type="password" class="form-control"></div>
+        <div class="mb-2"><label class="form-label small">New password (min 6 characters)</label><input id="pwNew" type="password" class="form-control"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" onclick="savePassword()">Update</button></div>
+</div></div></div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="toast" class="toast align-items-center text-bg-dark border-0" role="alert">
+        <div class="d-flex"><div class="toast-body" id="toastMsg"></div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ---------- Auth: no token => back to login ----------
+const TOKEN = sessionStorage.getItem('adminToken');
+if (!TOKEN) window.location.href = 'login.html';
+
+function logout() { sessionStorage.removeItem('adminToken'); window.location.href = 'login.html'; }
+
+async function api(path, method = 'GET', body) {
+    const res = await fetch('/api/admin' + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    if (res.status === 401) { logout(); throw new Error('Session expired'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Something went wrong');
+    return data;
+}
+
+// ---------- Small helpers ----------
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const monthLabel = v => { const [y, m] = v.split('-'); return MONTHS[Number(m) - 1] + ' ' + y; };
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+const badge = (s) => {
+    const cls = { Paid: 'success', Active: 'success', Resolved: 'success', Unpaid: 'warning text-dark', Pending: 'warning text-dark', Inactive: 'secondary' }[s] || 'secondary';
+    return `<span class="badge bg-${cls}">${esc(s)}</span>`;
+};
+const empty = (cols, msg) => `<tr><td colspan="${cols}" class="text-center text-muted py-4">${msg}</td></tr>`;
+
+function toast(msg, isError) {
+    const el = document.getElementById('toast');
+    el.className = 'toast align-items-center border-0 ' + (isError ? 'text-bg-danger' : 'text-bg-dark');
+    document.getElementById('toastMsg').textContent = msg;
+    bootstrap.Toast.getOrCreateInstance(el, { delay: 3000 }).show();
+}
+const openModal = id => bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
+const closeModal = id => bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).hide();
+const val = id => document.getElementById(id).value.trim();
+async function run(fn) { try { await fn(); } catch (e) { toast(e.message, true); } }
+
+function downloadCsv(name, rows) {
+    const csv = rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = name;
+    a.click();
+}
+
+// ---------- Navigation ----------
+function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('show', v.id === 'view-' + name));
+    document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+}
+document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+// ---------- Data ----------
+let customers = [], packages = [], bills = [], payments = [], complaints = [], report = { months: [], dues: [] };
+
+async function loadAll() {
+    [customers, packages, bills, payments, complaints, report] = await Promise.all([
+        api('/customers'), api('/packages'), api('/bills'), api('/payments'), api('/complaints'), api('/reports/collection')
+    ]);
+    const summary = await api('/summary');
+    renderOverview(summary);
+    renderCustomers(); renderBills(); renderPayments(); renderComplaints(); renderPackages(); renderReports();
+}
+
+// ---------- Overview ----------
+function renderOverview(s) {
+    const cards = [
+        ['bi-people', '#e8eaf6', '#3949ab', 'Customers', s.activeCustomers + ' active', `of ${s.totalCustomers} total`],
+        ['bi-hourglass-split', '#fff3e0', '#ef6c00', 'Outstanding', money(s.unpaidAmount), s.unpaidCount + ' unpaid bills'],
+        ['bi-cash-stack', '#e8f5e9', '#2e7d32', 'Collected this month', money(s.collectedThisMonth), 'All time ' + money(s.collectedTotal)],
+        ['bi-tools', '#fce4ec', '#c2185b', 'Pending complaints', s.pendingComplaints, 'need attention']
+    ];
+    document.getElementById('statCards').innerHTML = cards.map(c => `
+        <div class="col-sm-6 col-xl-3"><div class="card stat p-3"><div class="d-flex align-items-center gap-3">
+            <div class="icon" style="background:${c[1]};color:${c[2]}"><i class="bi ${c[0]}"></i></div>
+            <div><div class="text-muted small">${c[3]}</div><div class="fs-4 fw-bold lh-1">${c[4]}</div><div class="text-muted small mt-1">${c[5]}</div></div>
+        </div></div></div>`).join('');
+
+    const badgeEl = document.getElementById('complaintBadge');
+    badgeEl.textContent = s.pendingComplaints;
+    badgeEl.classList.toggle('d-none', !s.pendingComplaints);
+
+    document.getElementById('overviewMonths').innerHTML = report.months.slice(0, 5).map(m => {
+        const pct = m.billed ? Math.round(m.collected * 100 / m.billed) : 0;
+        return `<div class="mb-3"><div class="d-flex justify-content-between"><b>${esc(m.month)}</b><span>${money(m.collected)} of ${money(m.billed)}</span></div>
+                <div class="bar-wrap mt-1"><div class="bar" style="width:${pct}%"></div></div></div>`;
+    }).join('') || '<span class="text-muted">No bills yet</span>';
+
+    document.getElementById('recentPayments').innerHTML = payments.slice(0, 6).map(p =>
+        `<div class="d-flex justify-content-between border-bottom py-2"><span><b>${esc(p.customerName)}</b> <span class="text-muted">${esc(p.billMonth)} &middot; ${esc(p.method)}</span></span><b class="text-success">${money(p.amount)}</b></div>`
+    ).join('') || '<span class="text-muted">No payments yet</span>';
+}
+
+// ---------- Customers ----------
+function renderCustomers() {
+    const q = val('custSearch').toLowerCase(), f = document.getElementById('custFilter').value;
+    const rows = customers.filter(c =>
+        (!f || c.status === f) && (!q || [c.name, c.mobile, c.address, c.package].join(' ').toLowerCase().includes(q)));
+    document.getElementById('customerBody').innerHTML = rows.map(c => `
+        <tr><td>${c.id}</td><td class="fw-semibold">${esc(c.name)}</td><td>${esc(c.mobile)}</td><td>${esc(c.address)}</td>
+        <td>${esc(c.package)}</td><td>${c.outstanding ? `<span class="text-danger fw-semibold">${money(c.outstanding)}</span>` : '<span class="text-muted">-</span>'}</td>
+        <td>${badge(c.status)}</td>
+        <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-primary" onclick="openCustomerModal(${c.id})"><i class="bi bi-pencil"></i> Edit</button>
+            <button class="btn btn-sm btn-outline-${c.status === 'Active' ? 'danger' : 'success'}" onclick="toggleCustomer(${c.id})">${c.status === 'Active' ? 'Deactivate' : 'Activate'}</button>
+        </td></tr>`).join('') || empty(8, 'No customers found');
+}
+
+function openCustomerModal(id) {
+    const c = customers.find(x => x.id === id);
+    const active = packages.filter(p => p.active || (c && p.id === c.packageId));
+    if (!active.length) { toast('Add a package first', true); showView('packages'); return; }
+    document.getElementById('customerModalTitle').textContent = c ? 'Edit customer' : 'Add customer';
+    document.getElementById('cId').value = c ? c.id : '';
+    document.getElementById('cName').value = c ? c.name : '';
+    document.getElementById('cMobile').value = c ? c.mobile : '';
+    document.getElementById('cAddress').value = c ? c.address : '';
+    document.getElementById('cPackage').innerHTML = active.map(p =>
+        `<option value="${p.id}" ${c && c.packageId === p.id ? 'selected' : ''}>${esc(p.label)} - ${money(p.price)}</option>`).join('');
+    openModal('customerModal');
+}
+
+function saveCustomer() {
+    run(async () => {
+        const id = val('cId');
+        const body = { name: val('cName'), mobile: val('cMobile'), address: val('cAddress'), packageId: Number(val('cPackage')) };
+        await api(id ? '/customers/' + id : '/customers', id ? 'PUT' : 'POST', body);
+        closeModal('customerModal');
+        toast(id ? 'Customer updated' : 'Customer added');
+        await loadAll();
+    });
+}
+
+function toggleCustomer(id) {
+    const c = customers.find(x => x.id === id);
+    const next = c.status === 'Active' ? 'Inactive' : 'Active';
+    const msg = next === 'Inactive'
+        ? `Deactivate ${c.name}? They will not be able to log in to the app. Existing bills stay as they are.`
+        : `Activate ${c.name} again?`;
+    if (!confirm(msg)) return;
+    run(async () => { await api(`/customers/${id}/status`, 'PUT', { status: next }); toast(`${c.name} is now ${next}`); await loadAll(); });
+}
+
+// ---------- Bills ----------
+function renderBills() {
+    const q = val('billSearch').toLowerCase(), f = document.getElementById('billFilter').value;
+    const rows = bills.filter(b => (!f || b.status === f) && (!q || (b.customerName + ' ' + b.month).toLowerCase().includes(q)))
+                      .sort((a, b) => b.id - a.id);
+    document.getElementById('billBody').innerHTML = rows.map(b => `
+        <tr><td>${b.id}</td><td class="fw-semibold">${esc(b.customerName)}</td><td>${esc(b.month)}</td><td>${money(b.amount)}</td><td>${badge(b.status)}</td>
+        <td class="text-end text-nowrap">${b.status === 'Unpaid' ? `
+            <button class="btn btn-sm btn-success" onclick="openPayModal(${b.id})"><i class="bi bi-check2-circle"></i> Mark paid</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="cancelBill(${b.id})"><i class="bi bi-x-lg"></i></button>` : ''}</td></tr>`).join('') || empty(6, 'No bills found');
+}
+
+function openBillModal() {
+    const active = customers.filter(c => c.status === 'Active');
+    if (!active.length) { toast('No active customers', true); return; }
+    document.getElementById('bCustomer').innerHTML = active.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.mobile)})</option>`).join('');
+    document.getElementById('bMonth').value = thisMonth();
+    document.getElementById('bAmount').value = '';
+    openModal('billModal');
+}
+function saveBill() {
+    run(async () => {
+        if (!val('bMonth')) throw new Error('Choose a month');
+        await api('/bills', 'POST', { customerId: Number(val('bCustomer')), month: monthLabel(val('bMonth')), amount: val('bAmount') });
+        closeModal('billModal'); toast('Bill generated'); await loadAll();
+    });
+}
+function openBulkModal() { document.getElementById('bulkMonth').value = thisMonth(); openModal('bulkModal'); }
+function saveBulk() {
+    run(async () => {
+        if (!val('bulkMonth')) throw new Error('Choose a month');
+        const r = await api('/bills/generate-all', 'POST', { month: monthLabel(val('bulkMonth')) });
+        closeModal('bulkModal'); toast(`${r.created} bills created, ${r.skipped} skipped`); await loadAll();
+    });
+}
+function openPayModal(id) {
+    const b = bills.find(x => x.id === id);
+    document.getElementById('payBillId').value = id;
+    document.getElementById('payInfo').innerHTML = `<b>${esc(b.customerName)}</b> &middot; ${esc(b.month)} &middot; <b>${money(b.amount)}</b>`;
+    openModal('payModal');
+}
+function savePay() {
+    run(async () => {
+        await api(`/bills/${val('payBillId')}/pay`, 'PUT', { method: document.getElementById('payMethod').value });
+        closeModal('payModal'); toast('Payment recorded'); await loadAll();
+    });
+}
+function cancelBill(id) {
+    if (!confirm('Cancel this unpaid bill? This removes it completely.')) return;
+    run(async () => { await api('/bills/' + id, 'DELETE'); toast('Bill cancelled'); await loadAll(); });
+}
+
+// ---------- Payments ----------
+const filteredPayments = () => {
+    const q = val('paySearch').toLowerCase();
+    return payments.filter(p => !q || [p.customerName, p.method, p.txnId, p.billMonth, p.source].join(' ').toLowerCase().includes(q));
+};
+function renderPayments() {
+    document.getElementById('paymentBody').innerHTML = filteredPayments().map(p => `
+        <tr><td class="text-nowrap">${esc(p.date || '-')}</td><td class="fw-semibold">${esc(p.customerName)}</td><td>${esc(p.billMonth)}</td>
+        <td class="text-success fw-semibold">${money(p.amount)}</td><td>${esc(p.method)}</td><td>${esc(p.source)}</td><td class="text-muted small">${esc(p.txnId)}</td></tr>`).join('') || empty(7, 'No payments yet');
+}
+function exportPayments() {
+    downloadCsv('payments.csv', [['Date', 'Customer', 'Bill month', 'Amount', 'Method', 'Via', 'Reference']]
+        .concat(filteredPayments().map(p => [p.date, p.customerName, p.billMonth, p.amount, p.method, p.source, p.txnId])));
+}
+
+// ---------- Complaints ----------
+function renderComplaints() {
+    const f = document.getElementById('compFilter').value;
+    const rows = complaints.filter(c => !f || c.status === f);
+    document.getElementById('complaintBody').innerHTML = rows.map(c => `
+        <tr><td>${c.id}</td><td><b>${esc(c.customerName)}</b><div class="text-muted small">${esc(c.customerMobile)}</div></td><td>${esc(c.text)}</td>
+        <td class="text-nowrap">${esc(c.date)}</td><td>${badge(c.status)}</td>
+        <td class="text-end">${c.status === 'Pending' ? `<button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id})"><i class="bi bi-check2"></i> Resolve</button>` : ''}</td></tr>`).join('') || empty(6, 'Nothing here');
+}
+function resolveComplaint(id) {
+    run(async () => { await api(`/complaints/${id}/resolve`, 'PUT'); toast('Marked as resolved'); await loadAll(); });
+}
+
+// ---------- Packages ----------
+function renderPackages() {
+    document.getElementById('packageCards').innerHTML = packages.map(p => `
+        <div class="col-md-6 col-xl-4"><div class="panel h-100 ${p.active ? '' : 'opacity-75'}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="fs-5 fw-bold">${esc(p.name)}</div><div class="text-muted">${p.channels}+ channels</div></div>
+                ${badge(p.active ? 'Active' : 'Inactive')}
+            </div>
+            <div class="display-6 fw-bold my-3">${money(p.price)}<span class="fs-6 text-muted fw-normal"> / month</span></div>
+            <div class="text-muted small mb-3"><i class="bi bi-people"></i> ${p.customers} customer${p.customers === 1 ? '' : 's'}</div>
+            <button class="btn btn-sm btn-outline-primary" onclick="openPackageModal(${p.id})"><i class="bi bi-pencil"></i> Edit</button>
+            <button class="btn btn-sm btn-outline-${p.active ? 'danger' : 'success'}" onclick="togglePackage(${p.id})">${p.active ? 'Deactivate' : 'Activate'}</button>
+        </div></div>`).join('') || '<div class="text-muted">No packages yet</div>';
+}
+function openPackageModal(id) {
+    const p = packages.find(x => x.id === id);
+    document.getElementById('packageModalTitle').textContent = p ? 'Edit package' : 'Add package';
+    document.getElementById('pId').value = p ? p.id : '';
+    document.getElementById('pActive').value = p ? String(p.active) : 'true';
+    document.getElementById('pName').value = p ? p.name : '';
+    document.getElementById('pChannels').value = p ? p.channels : '';
+    document.getElementById('pPrice').value = p ? p.price : '';
+    openModal('packageModal');
+}
+function savePackage() {
+    run(async () => {
+        const id = val('pId');
+        const body = { name: val('pName'), channels: val('pChannels'), price: val('pPrice'), active: val('pActive') === 'true' };
+        await api(id ? '/packages/' + id : '/packages', id ? 'PUT' : 'POST', body);
+        closeModal('packageModal'); toast('Package saved'); await loadAll();
+    });
+}
+function togglePackage(id) {
+    const p = packages.find(x => x.id === id);
+    if (p.active && !confirm(`Deactivate ${p.name}? It can't be given to new customers, but current customers keep it.`)) return;
+    run(async () => {
+        await api('/packages/' + id, 'PUT', { name: p.name, channels: p.channels, price: p.price, active: !p.active });
+        toast(p.active ? 'Package deactivated' : 'Package activated'); await loadAll();
+    });
+}
+
+// ---------- Reports ----------
+function renderReports() {
+    document.getElementById('reportBody').innerHTML = report.months.map(m => {
+        const pct = m.billed ? Math.round(m.collected * 100 / m.billed) : 0;
+        return `<tr><td class="fw-semibold">${esc(m.month)}</td><td>${m.paidBills}/${m.bills} paid</td><td>${money(m.billed)}</td>
+            <td class="text-success fw-semibold">${money(m.collected)}</td><td class="${m.outstanding ? 'text-danger' : ''}">${money(m.outstanding)}</td>
+            <td><div class="d-flex align-items-center gap-2"><div class="bar-wrap flex-grow-1"><div class="bar" style="width:${pct}%"></div></div><small>${pct}%</small></div></td></tr>`;
+    }).join('') || empty(6, 'No bills yet');
+    document.getElementById('duesBody').innerHTML = report.dues.map(d => `
+        <tr><td class="fw-semibold">${esc(d.name)} ${d.status === 'Inactive' ? badge('Inactive') : ''}</td><td>${esc(d.mobile)}</td><td>${d.unpaidBills}</td>
+        <td class="text-danger fw-semibold">${money(d.outstanding)}</td></tr>`).join('') || empty(4, 'No dues - everyone has paid 🎉');
+}
+function exportReport() {
+    downloadCsv('collection-report.csv', [['Month', 'Bills', 'Paid bills', 'Billed', 'Collected', 'Outstanding']]
+        .concat(report.months.map(m => [m.month, m.bills, m.paidBills, m.billed, m.collected, m.outstanding])));
+}
+
+// ---------- Backup ----------
+function downloadBackup() {
+    run(async () => {
+        const res = await fetch('/api/admin/backup', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+        if (res.status === 401) { logout(); return; }
+        if (!res.ok) throw new Error('Could not create the backup');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(await res.blob());
+        a.download = 'star-tv-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        toast('Backup downloaded - keep it somewhere safe');
+    });
+}
+
+// ---------- Password ----------
+function savePassword() {
+    run(async () => {
+        await api('/change-password', 'POST', { currentPassword: document.getElementById('pwOld').value, newPassword: document.getElementById('pwNew').value });
+        closeModal('pwModal');
+        document.getElementById('pwOld').value = ''; document.getElementById('pwNew').value = '';
+        document.getElementById('pwBanner').classList.add('d-none');
+        toast('Password changed');
+    });
+}
+
+// ---------- Start ----------
+run(async () => {
+    const me = await api('/me');
+    document.getElementById('pwBanner').classList.toggle('d-none', !me.isDefaultPassword);
+    await loadAll();
+});
+</script>
+</body>
+</html>
